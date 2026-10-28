@@ -1,0 +1,8 @@
+{
+  "title": "FinanceBench: plain vector search vs. hybrid search with re-ranking",
+  "description": "10 analyst questions about four real company filings (3M 10-K 2018 and 2022, 3M 10-Q 2023, Activision Blizzard 10-K 2019), answered by two setups of the finance-tuned pipeline: a plain vector-search baseline, and hybrid search (keywords + vectors, limited to the filing the question names) with LLM re-ranking. Both use top-K 5 and 32-line windows.",
+  "what_to_look_at": "The search is what makes the difference. Hybrid search finds 92% of the gold evidence passages against 45% for plain vector search, and answer accuracy rises from 2.6 to 3.7 out of 5. Faithfulness is high for both (about 5/5): when the baseline is wrong, it is not inventing facts, it simply did not get the right passage. Open 'Question by question' and switch on 'Show only questions with a problem' to see which questions still fail with hybrid search: they are mostly calculations across several table rows.",
+  "kind": "financial",
+  "source": "FinanceBench",
+  "added_at": "2026-10-27T22:50:16+00:00"
+}

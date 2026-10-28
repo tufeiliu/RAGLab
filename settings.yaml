@@ -1,0 +1,18 @@
+# Starting values for the RAGLab app. The sidebar opens with these; you can still change them there.
+# Restart the app (or refresh the page) after editing this file.
+
+defaults:
+  answer_model: openai_mini        # an alias from models.yaml (models.chat)
+  embedding_model: openai_small    # an alias from models.yaml (models.embedding)
+  chunk_size: 800                  # characters per chunk
+  chunk_overlap: 150               # characters shared by neighbouring chunks; must be smaller than chunk_size
+  top_k: 5                         # passages given to the answer model
+  techniques: []                   # any of: improved_prompt, query_rewrite, query_fusion, query_expansion,
+                                   #   rerank, opening, graph, preprocess, hierarchical  (see the Guide page)
+  judge: true                      # score answers with the LLM judge when a correct answer is given
+  reuse_cached_answers: false      # return stored model answers for identical prompts
+
+# Allowed ranges for the numbers you can type in the sidebar.
+limits:
+  chunk_size: [50, 8000]
+  top_k: [1, 50]

@@ -1,0 +1,35 @@
+# Secrets: API keys live in .env (see .env.example)
+.env
+
+# Python environment, caches and build output
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Data the app generates: workspaces, indexes, caches, runs, logs
+raglab_data/
+raglab_db/
+
+# FinanceBench downloads and outputs (recreate with examples/financial_rag_benchmark/prepare.py)
+examples/financial_rag_benchmark/data/raw/
+examples/financial_rag_benchmark/data/pdfs/
+examples/financial_rag_benchmark/data/documents/
+examples/financial_rag_benchmark/data/indexes/
+examples/financial_rag_benchmark/results/
+
+# Loose local files in the project root
+/*.zip
+/*.pdf
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+
+# Links into .venv created by Streamlit's agent skills; they only work on this machine
+.agents/skills/developing-with-streamlit
+.claude/skills/developing-with-streamlit

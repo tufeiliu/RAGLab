@@ -1,0 +1,28 @@
+# FinanceBench experimental plan. Gold answers/evidence are not used at retrieval time.
+settings:
+  chat: openai_gpt5_mini
+  embedding: openai_small
+  judge: openai_gpt5_mini
+  judge_enabled: true
+  top_k: 5
+  window_lines: 32
+  window_overlap: 10
+runs:
+  - name: baseline
+    retrieval: vector
+    techniques: {}
+  - name: filtered_vector
+    retrieval: filtered_vector
+    techniques: {}
+  - name: filtered_hybrid
+    retrieval: hybrid
+    techniques: {}
+  - name: hybrid_rewrite
+    retrieval: hybrid
+    techniques:
+      query_rewrite: true
+      query_fusion: true
+  - name: hybrid_rerank
+    retrieval: hybrid
+    techniques:
+      rerank: true

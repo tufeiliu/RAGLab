@@ -1,0 +1,36 @@
+# Curated, editable catalog; NOT a guaranteed exhaustive list of provider models.
+# Secrets belong in .env or Hugging Face Space Secrets, never in this file.
+models:
+  chat:
+    openai_mini:
+      label: OpenAI GPT-4.1 mini
+      provider: openai
+      model: gpt-4.1-mini
+      api_key_env: OPENAI_API_KEY
+    openai_gpt5_mini:
+      label: OpenAI GPT-5 mini
+      provider: openai
+      model: gpt-5-mini
+      api_key_env: OPENAI_API_KEY
+    claude_haiku:
+      label: Anthropic Claude Haiku 4.5
+      provider: anthropic
+      model: claude-haiku-4-5
+      api_key_env: ANTHROPIC_API_KEY
+    claude_sonnet:
+      label: Anthropic Claude Sonnet 4.6
+      provider: anthropic
+      model: claude-sonnet-4-6
+      api_key_env: ANTHROPIC_API_KEY
+  embedding:
+    openai_small:
+      label: OpenAI text-embedding-3-small
+      provider: openai
+      model: text-embedding-3-small
+      api_key_env: OPENAI_API_KEY
+    openai_large:
+      label: OpenAI text-embedding-3-large
+      provider: openai
+      model: text-embedding-3-large
+      api_key_env: OPENAI_API_KEY
+# Add other models and providers only when their SDK integration is implemented.
