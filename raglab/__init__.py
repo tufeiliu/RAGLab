@@ -9,3 +9,6 @@ from .catalog import ModelCatalog
 from .experiments import run_experiments, load_plan, expand_grid
 from .failure import analyze_failure, failure_report
 __all__ += ["ModelCatalog", "run_experiments", "load_plan", "expand_grid", "analyze_failure", "failure_report"]
+
+from .search import find_best_rag, plan_search, SearchResult
+__all__ += ["find_best_rag", "plan_search", "SearchResult"]

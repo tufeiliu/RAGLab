@@ -60,6 +60,11 @@ def test_workspace_without_workspaces(data):
 def test_guide_and_library_render(data):
     at = app('app_pages/guide.py')
     assert at.markdown[0].value.startswith('# RAGLab guide')
+    assert [t.label for t in at.tabs] == ['Overview', 'Using the app', 'Test questions', 'Settings', 'Techniques',
+                                          'Scores', 'Improving results', 'Python API', 'Benchmarks',
+                                          'Storage and limits']
+    # Code blocks stay inside their section (the Python comments are not headings).
+    assert '# the app' in next(t for t in at.tabs if t.label == 'Python API').markdown[0].value
     at = app('app_pages/library.py')
     assert any('FinanceBench: plain vector search' in m.value for m in at.markdown)
     next(b for b in at.button if b.label == 'Open').click().run()
@@ -252,7 +257,8 @@ def test_workspace_runs_list_compare_and_delete(data):
     assert runs['Chunk size'].tolist() == ['200', '100'] and runs['Techniques'].tolist() == ['LLM re-ranking'] * 2
     assert runs['Accuracy'].tolist() == [2, 4]
     # Tick both runs and press Compare: the Results page opens with them selected
-    at.session_state[f'runs_{slug}'] = {'selection': {'rows': [0, 1], 'columns': [], 'cells': []}}
+    ids = [j['id'] for j in jobs.recent_jobs(500, kinds=jobs.RUN_KINDS) if j.get('collection') == slug]
+    at.session_state[ui.selection_key(f'runs_{slug}', ids)] = {'selection': {'rows': [0, 1], 'columns': [], 'cells': []}}
     at.run()
     next(b for b in at.button if b.label == 'Compare 2 runs').click().run()
     assert not at.exception, [e.value for e in at.exception]
@@ -260,6 +266,28 @@ def test_workspace_runs_list_compare_and_delete(data):
     assert list(scores.index) == ['#2 · chunks 200', '#1 · chunks 100']  # permanent run numbers, oldest first
     jobs.delete_job('aaaaaaaaaaaa')
     assert [j['id'] for j in jobs.recent_jobs()] == ['bbbbbbbbbbbb']
+
+
+def test_run_numbers_are_never_reused(data):
+    first = jobs.record_answer('papers', 'Papers', 'Q?', {'experiments': []}, {'runs': []}, 'one')
+    second = jobs.record_answer('papers', 'Papers', 'Q?', {'experiments': []}, {'runs': []}, 'two')
+    assert jobs.status(second)['number'] == 2
+    jobs.delete_job(second)
+    third = jobs.record_answer('papers', 'Papers', 'Q?', {'experiments': []}, {'runs': []}, 'three')
+    assert jobs.status(first)['number'] == 1 and jobs.status(third)['number'] == 3
+
+
+def test_worker_keeps_a_rename_made_while_running(data, monkeypatch):
+    from raglab_app import job_worker
+    add_job(data, 'dddddddddddd', kind='experiment', status='queued', display_name='old')
+
+    def runner(directory, meta):
+        jobs.rename_job('dddddddddddd', 'renamed meanwhile')
+    monkeypatch.setitem(job_worker.RUNNERS, 'experiment', runner)
+    monkeypatch.setattr(job_worker, 'setup_job_logging', lambda: None)
+    job_worker.main(data / 'jobs' / 'dddddddddddd', 'experiment')
+    meta = jobs.status('dddddddddddd')
+    assert meta['status'] == 'completed' and meta['display_name'] == 'renamed meanwhile'
 
 
 def test_running_job_cannot_be_deleted(data):
@@ -282,7 +310,8 @@ def test_asking_records_comparable_runs(data):
     assert len(recorded) == 2 and recorded[0]['question'] == 'What is the answer?'
     runs = next(d.value for d in at.dataframe if 'Run' in d.value and 'Questions' in d.value)
     assert runs['Questions'].tolist() == ['Ask: What is the answer?'] * 2
-    at.session_state[f'runs_{slug}'] = {'selection': {'rows': [0, 1], 'columns': [], 'cells': []}}
+    ids = [j['id'] for j in jobs.recent_jobs(500, kinds=jobs.RUN_KINDS) if j.get('collection') == slug]
+    at.session_state[ui.selection_key(f'runs_{slug}', ids)] = {'selection': {'rows': [0, 1], 'columns': [], 'cells': []}}
     at.run()
     next(b for b in at.button if b.label == 'Compare 2 runs').click().run()
     assert not at.exception, [e.value for e in at.exception]
@@ -297,13 +326,14 @@ def test_compare_asked_questions_side_by_side(data):
         at.text_area(key='ask_question').input(question)
         at.text_input(key='ask_keywords').input('42')
         at.button(key='FormSubmitter:ask-Ask and evaluate').click().run()
-    at.session_state[f'runs_{slug}'] = {'selection': {'rows': [0, 1], 'columns': [], 'cells': []}}
+    ids = [j['id'] for j in jobs.recent_jobs(500, kinds=jobs.RUN_KINDS) if j.get('collection') == slug]
+    at.session_state[ui.selection_key(f'runs_{slug}', ids)] = {'selection': {'rows': [0, 1], 'columns': [], 'cells': []}}
     at.run()
     next(b for b in at.button if b.label == 'Compare 2 runs').click().run()
     assert not at.exception, [e.value for e in at.exception]
     table = next(d.value for d in at.dataframe if getattr(d.value, 'index', None) is not None
                  and d.value.index.name == 'Question')
-    assert list(table.index) == ['What is everything?', 'What is the answer?']
+    assert list(table.index) == ['Q1. What is everything?', 'Q2. What is the answer?']
     assert any('answered different questions' in c.value for c in at.caption)
     legend = next(d.value for d in at.dataframe if list(getattr(d.value, 'columns', [])) == ['ID', 'Question', 'Runs'])
     assert legend.to_dict('records') == [{'ID': 'Q1', 'Question': 'What is everything?', 'Runs': '#2'},

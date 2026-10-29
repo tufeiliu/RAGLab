@@ -85,18 +85,19 @@ def main(directory: Path, kind: str) -> None:
     meta['status'] = 'running'
     meta['started_at'] = time.time()
     _write(state_file, meta)
+    outcome = {}
     try:
         if kind not in RUNNERS:
             raise ValueError(f'Unknown job kind: {kind}')
         RUNNERS[kind](directory, meta)
-        meta['status'] = 'completed'
+        outcome['status'] = 'completed'
         log.info('Job finished in %.0fs', time.time() - meta['started_at'])
     except Exception as exc:
-        meta['status'] = 'failed'
-        meta['error'] = str(exc)
+        outcome.update(status='failed', error=str(exc))
         log.exception('Job failed')
     finally:
-        meta['finished_at'] = time.time()
+        # Re-read: the app may have changed the file meanwhile (a rename, the process id).
+        meta = {**json.loads(state_file.read_text(encoding='utf-8')), **outcome, 'finished_at': time.time()}
         _write(state_file, meta)
 
 

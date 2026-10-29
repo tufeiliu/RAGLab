@@ -40,7 +40,11 @@ RUN_KINDS = ('experiment', 'financial', 'ask')  # what users see as "runs"; thes
 
 
 def _numbers() -> list[int]:
-    numbers = []
+    """Run numbers in use, plus the highest ever given (kept in a file, so deleting runs never frees one)."""
+    try:
+        numbers = [int((JOBS / 'last_run_number').read_text(encoding='utf-8'))]
+    except (OSError, ValueError):
+        numbers = []
     for path in JOBS.glob('*/status.json'):
         try:
             numbers.append(int(json.loads(path.read_text(encoding='utf-8')).get('number') or 0))
@@ -57,6 +61,7 @@ def _new_job(kind: str, **meta) -> tuple[str, Path]:
         recent_jobs(1)  # number any older runs first, so numbers follow creation order
         # Short permanent ID shown as "#7"; never reused, also after deletions.
         meta['number'] = max(_numbers(), default=0) + 1
+        (JOBS / 'last_run_number').write_text(str(meta['number']), encoding='utf-8')
     _write(directory / 'status.json', {'id': run_id, 'kind': kind, 'status': 'queued',
                                        'created_at': _now(), 'log': str(directory / 'job.log'), **meta})
     return run_id, directory
@@ -272,7 +277,7 @@ def _number_older_runs(rows: list[dict]) -> None:
     """Runs made before run numbers existed get one, oldest first, saved so it never changes."""
     missing = sorted((m for m in rows if m.get('kind') in RUN_KINDS and not m.get('number')),
                      key=lambda m: m['created_at'])
-    next_number = max((int(m.get('number') or 0) for m in rows), default=0) + 1
+    next_number = max([int(m.get('number') or 0) for m in rows] + _numbers(), default=0) + 1
     for meta in missing:
         meta['number'] = next_number
         try:

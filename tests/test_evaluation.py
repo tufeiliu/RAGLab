@@ -42,9 +42,11 @@ class EvaluationTests(unittest.TestCase):
             self.assertEqual(report["summary"]["keyword_coverage"], 1)
             self.assertEqual(report["summary"]["failed"], 0)
 
-    def test_no_reference_rejected_for_judge(self):
-        with self.assertRaisesRegex(ValueError, "reference_answer"):
-            evaluate_result(RagStub().ask("q"), TestCase(question="q"), JudgeStub())
+    def test_question_without_reference_skips_the_judge(self):
+        # Mixed test sets: questions without a correct answer are scored on retrieval only, not failed.
+        row = evaluate_result(RagStub().ask("q"), TestCase(question="q", keywords=["q"]), JudgeStub())
+        self.assertNotIn("judge", row)
+        self.assertIsNotNone(row["mrr"])
 
 
 if __name__ == "__main__":

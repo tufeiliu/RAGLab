@@ -62,3 +62,36 @@ def test_judge_is_told_that_refusing_is_wrong():
     import inspect
     from raglab.evaluation import LLMJudge
     assert 'cannot answer' in inspect.getsource(LLMJudge.evaluate)
+
+
+class QueryStore(FakeStore):
+    """'q' finds alpha0..alpha9; any other query finds beta0..beta3, then alpha5."""
+    def similarity_search(self, query, k):
+        if query == 'q':
+            found = [f'alpha{i}' for i in range(10)]
+        else:
+            found = [f'beta{i}' for i in range(4)] + ['alpha5']
+        return [Document(page_content=text, metadata={}) for text in found[:k]]
+
+    def get(self, include):
+        return {'documents': ['alpha0', 'unrelated words', 'alpha0 alpha1 neighbour'], 'metadatas': [{}, {}, {}]}
+
+
+def query_lab(**settings):
+    lab = RAGLab.__new__(RAGLab)
+    lab.config = RAGConfig(top_k=3, **settings)
+    lab.store = QueryStore([])
+    lab._ask = lambda instruction, text: 'other wording' if 'queries' in instruction or 'Rewrite' in instruction else 'answer'
+    return [d.page_content for d in lab.ask('q').documents]
+
+
+def test_extra_queries_change_what_is_retrieved():
+    # Before: the first query's results filled the top-K, so expansion and fusion changed nothing.
+    assert query_lab() == ['alpha0', 'alpha1', 'alpha2']
+    # Reciprocal rank fusion: alpha5, found by both queries, comes first; then the two queries interleave.
+    assert query_lab(query_expansion=2) == ['alpha5', 'alpha0', 'beta0']
+    assert query_lab(query_rewrite=True, query_fusion=True) == ['alpha5', 'alpha0', 'beta0']
+
+
+def test_neighbour_expansion_adds_chunks_after_the_top_k():
+    assert query_lab(graph=True) == ['alpha0', 'alpha1', 'alpha2', 'alpha0 alpha1 neighbour']

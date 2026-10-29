@@ -15,11 +15,30 @@ log = logging.getLogger("raglab.experiments")
 
 TECHNIQUES = {"improved_prompt", "preprocess", "query_rewrite", "query_fusion",
               "query_expansion", "rerank", "hierarchical", "graph", "agentic", "opening"}
+# Technique name -> RAGConfig switches it sets (shared by the app and raglab.search).
+TECHNIQUE_FLAGS = {
+    "improved_prompt": {"improved_prompt": True},
+    "query_rewrite": {"query_rewrite": True},
+    "query_fusion": {"query_rewrite": True, "query_fusion": True},
+    "query_expansion": {"query_expansion": 3},
+    "rerank": {"rerank": True},
+    "opening": {"opening": True},
+    "graph": {"graph": True},
+    "preprocess": {"preprocess": True},
+    "hierarchical": {"hierarchical": True},
+}
+# Metrics tried in order when choosing the best run: judged answer accuracy, then evidence-based
+# search quality, then the keyword proxy, and, for questions without any answer key, the reference-free
+# judge (does the answer address the question, is it grounded, did the search find useful passages).
+# The first one every run has decides; the rest break ties.
+RANKING_METRICS = ("accuracy", "evidence_mrr", "evidence_recall", "context_recall", "mrr",
+                   "relevance", "faithfulness", "context_precision")
 SETTINGS = set(RAGConfig.__dataclass_fields__) - {"chat_model", "embedding_model", "db_dir", "collection_name"}
 
 
-def load_plan(path: str | Path) -> dict:
-    plan = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+def load_plan(path: str | Path | dict) -> dict:
+    """Read and validate an experiment plan from YAML (or validate one given as a dict)."""
+    plan = path if isinstance(path, dict) else yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(plan, dict) or not plan.get("runs"):
         raise ValueError("Experiment YAML must contain a nonempty runs list")
     for run in plan["runs"]:
@@ -60,7 +79,7 @@ def expand_grid(plan: dict) -> list[dict]:
     return expanded
 
 
-def run_experiments(plan_path: str | Path, catalog_path: str | Path, tests,
+def run_experiments(plan_path: str | Path | dict, catalog_path: str | Path, tests,
                     documents: list[str], *, index_root: str | Path | None = None,
                     cache_dir: str | Path | None = None, cache_responses: bool = False,
                     progress=None) -> dict[str, Any]:
@@ -126,7 +145,8 @@ def run_experiments(plan_path: str | Path, catalog_path: str | Path, tests,
                              on_progress=lambda stage, done, total: emit(stage=f"indexing ({stage} {done}/{total})", **state),
                              **clients)
         lab = open_index(cfg, index_root, files, **clients)
-        judge = LLMJudge(llm=chat_client(judge_spec, cache=response_cache)) if judge_spec else None
+        judge = LLMJudge(llm=chat_client(judge_spec, cache=response_cache),
+                         without_reference=bool(defaults.get("judge_without_reference"))) if judge_spec else None
         emit(stage="evaluating", **state)
         report = evaluate_dataset(lab, tests, judge=judge, on_progress=lambda done, total, ok, failed: emit(
             stage="evaluating", **{**state, "question_done": done}, successful=ok, failed=failed))
@@ -146,11 +166,28 @@ def run_experiments(plan_path: str | Path, catalog_path: str | Path, tests,
         emit(stage="run_complete", **{**state, "completed_runs": number, "question_done": len(tests)})
     if response_cache:
         log.info("Response cache: %d hits, %d new calls", response_cache.hits, response_cache.misses)
-    def score(report):
-        summary = report["summary"]
-        # Rank using accuracy when judged; otherwise retrieval score.
-        return (summary.get("accuracy") if summary.get("accuracy") is not None else summary.get("ndcg")) or 0.0
-    ranking = sorted(reports, key=score, reverse=True)
-    return {"leaderboard": [{"name": r["name"], "models": r["models"],
-                              **r["summary"]} for r in ranking], "experiments": reports,
-            "ranking_rule": "accuracy if judge enabled, else keyword-based nDCG; inspect all metrics"}
+    metric = ranking_metric([r["summary"] for r in reports])
+    ranking = rank([r["summary"] for r in reports], metric)
+    return {"leaderboard": [{"name": reports[i]["name"], "models": reports[i]["models"],
+                              **reports[i]["summary"]} for i in ranking], "experiments": reports,
+            "ranking_metric": metric,
+            "ranking_rule": f"{metric or 'none'} (highest first); runs with failed questions rank last"}
+
+
+def ranking_metric(summaries: list[dict], preferred: str | None = None) -> str | None:
+    """The metric to rank by: preferred if given, else the first of RANKING_METRICS every run has."""
+    if preferred:
+        if not any(s.get(preferred) is not None for s in summaries):
+            raise ValueError(f"No run has a {preferred!r} score; the test questions may lack what it needs")
+        return preferred
+    return next((m for m in RANKING_METRICS if summaries and all(s.get(m) is not None for s in summaries)), None)
+
+
+def rank(summaries: list[dict], metric: str | None) -> list[int]:
+    """Indexes of summaries, best first. Runs with failed questions go last (their averages are biased);
+    ties are broken by the other ranking metrics, then by speed."""
+    def key(i):
+        s = summaries[i]
+        others = [s.get(m) or 0.0 for m in RANKING_METRICS if m != metric]
+        return (not s.get("failed"), s.get(metric) or 0.0 if metric else 0.0, *others, -(s.get("latency_s") or 0.0))
+    return sorted(range(len(summaries)), key=key, reverse=True)

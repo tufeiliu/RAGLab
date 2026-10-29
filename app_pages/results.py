@@ -7,7 +7,7 @@ import streamlit as st
 from raglab_app import collections, library, runs
 from raglab_app.jobs import delete_job, read_log, recent_jobs, rename_job
 from raglab_app.report_view import comparable_key, compare_runs, render, run_entries
-from raglab_app.ui import job_progress, page_intro
+from raglab_app.ui import job_progress, page_intro, selection_key
 
 KINDS = ('experiment', 'financial', 'ask')
 TABS = {'runs': ':material/list: Runs', 'compare': ':material/compare_arrows: Compare runs',
@@ -18,6 +18,8 @@ page_intro('Results', 'Everything you have run. **Runs** shows one run in full; 
 
 if 'results_goto' in st.session_state:  # set by the Workspace's Compare / Open buttons
     st.session_state['results_tab'] = TABS[st.session_state.pop('results_goto')]
+    # A run asked for by name wins over a row clicked earlier: start the table without a selection.
+    st.session_state['run_table_version'] = st.session_state.get('run_table_version', 0) + 1
 runs_tab, compare_tab, tests_tab = st.tabs(list(TABS.values()), key='results_tab', on_change='rerun')
 jobs = recent_jobs(500, kinds=KINDS)
 
@@ -41,7 +43,9 @@ if runs_tab.open:
                                    **runs.overview(j, [e['experiment'].get('summary', {}) for e in run_entries(j)]
                                                    if finished(j) else None)} for j in jobs])
             picked = st.dataframe(table.dropna(axis=1, how='all'), hide_index=True, on_select='rerun',
-                                  selection_mode='single-row', key='experiment_table')
+                                  selection_mode='single-row',
+                                  key=selection_key(f"experiment_table_{st.session_state.get('run_table_version', 0)}",
+                                                    [j['id'] for j in jobs]))
             if picked.selection.rows:
                 job = jobs[picked.selection.rows[0]]
             else:
@@ -164,7 +168,7 @@ if tests_tab.open:
                                         'With passage': info.get('with_evidence', 0), 'With keywords': info['with_keywords']}
                                        for w, set_name, info in sets])
             picked_set = st.dataframe(test_table, hide_index=True, on_select='rerun', selection_mode='single-row',
-                                      key='test_sets')
+                                      key=selection_key('test_sets', [f"{w['slug']}/{n}" for w, n, _ in sets]))
             if picked_set.selection.rows:
                 w, set_name, _ = sets[picked_set.selection.rows[0]]
                 st.dataframe(pd.DataFrame([{'Question': c['question'], 'Correct answer': c['reference_answer'],

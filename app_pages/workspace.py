@@ -17,7 +17,7 @@ from raglab_app.plans import build_plan, parse_ints
 from raglab_app.settings import load as load_settings
 from raglab_app.report_view import comparable_key, render, render_report, run_entries, single_answer_report
 from raglab_app.results_charts import RETRIEVAL_METRICS
-from raglab_app.ui import ensure_index, job_progress, pick_workspace, when
+from raglab_app.ui import ensure_index, job_progress, pick_workspace, selection_key, when
 
 st.title('Workspace')
 st.caption('Upload files, ask questions about them, and measure how well the answers are. '
@@ -97,7 +97,8 @@ with st.expander('Add or remove files', icon=':material/upload_file:', expanded=
     if files:
         file_table = pd.DataFrame([{'File': n, 'Size (KB)': round(i['bytes'] / 1024, 1), 'Added': when(i['added_at'])}
                                    for n, i in sorted(files.items())])
-        picked = st.dataframe(file_table, hide_index=True, on_select='rerun', selection_mode='multi-row', key=f'files_{slug}')
+        picked = st.dataframe(file_table, hide_index=True, on_select='rerun', selection_mode='multi-row',
+                              key=selection_key(f'files_{slug}', file_table['File']))
         chosen = [file_table.iloc[i]['File'] for i in picked.selection.rows]
         if chosen and st.button(f'Remove {len(chosen)} selected file(s)', icon=':material/delete:'):
             for name in chosen:
@@ -478,7 +479,8 @@ else:
             summaries = [e['experiment'].get('summary', {}) for e in run_entries(job)]
         run_rows.append(runs.overview(job, summaries))
     picked = st.dataframe(pd.DataFrame(run_rows).dropna(axis=1, how='all'), hide_index=True,
-                          on_select='rerun', selection_mode='multi-row', key=f'runs_{slug}')
+                          on_select='rerun', selection_mode='multi-row',
+                          key=selection_key(f'runs_{slug}', [j['id'] for j in mine]))
     chosen = [mine[i] for i in picked.selection.rows]
 finished = [j for j in chosen if j.get('status') == 'completed']
 same_questions = len({comparable_key(j) for j in finished}) == 1

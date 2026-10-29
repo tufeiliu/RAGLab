@@ -166,6 +166,20 @@ class RAGLab:
                 output.append(doc)
         return output
 
+    @classmethod
+    def _fuse(cls, rankings: list[list[Document]], k: int = 60) -> list[Document]:
+        """Reciprocal rank fusion: passages ranked high by several queries come first.
+
+        With one query this is that query's ranking, minus duplicates.
+        """
+        scores, docs = {}, {}
+        for ranking in rankings:
+            for rank, doc in enumerate(cls._unique(ranking), 1):
+                key = (doc.metadata.get("text_type"), " ".join(doc.page_content.split()))
+                scores[key] = scores.get(key, 0.0) + 1 / (k + rank)
+                docs.setdefault(key, doc)
+        return [docs[key] for key in sorted(scores, key=scores.get, reverse=True)]
+
     def _openings(self, docs: list[Document], max_files: int = 3) -> list[Document]:
         """First chunk of each file among docs: where titles, authors and dates usually are."""
         out = []
@@ -187,9 +201,10 @@ class RAGLab:
         all_data = self.store.get(include=["documents", "metadatas"])
         words = lambda s: set(re.findall(r"\b[A-Za-z][A-Za-z0-9-]{3,}\b", s.lower()))
         seeds = set().union(*(words(d.page_content) for d in docs)) if docs else set()
+        have = {d.page_content for d in docs}
         scored = []
         for content, meta in zip(all_data.get("documents", []), all_data.get("metadatas", [])):
-            if content:
+            if content and content not in have:  # the retrieved chunks themselves overlap most
                 overlap = len(seeds & words(content))
                 if overlap:
                     scored.append((overlap, Document(page_content=content, metadata=meta or {})))
@@ -256,19 +271,18 @@ class RAGLab:
                 tool_result = self._sql_readonly(question)
         docs = []
         if not tool_result:
-            for q in queries:
-                # Extra candidates, so that dropping duplicates still leaves top_k passages.
-                docs.extend(self.store.similarity_search(q, k=cfg.top_k * 2))
-            docs = self._unique(docs)
+            # Extra candidates, so that dropping duplicates still leaves top_k passages.
+            docs = self._fuse([self.store.similarity_search(q, k=cfg.top_k * 2) for q in queries])
             candidates = len(docs)
-            if cfg.graph:
-                docs = self._expand_graph(docs)
-                trace.append(f"Graph-neighbor expansion: {len(docs)} passages")
             if cfg.rerank:
                 docs = self._rerank(question, docs)
                 trace.append("LLM re-ranking applied")
             docs = docs[: cfg.top_k]
             trace.append(f"Search returned {candidates} candidate passages; kept the best {len(docs)}")
+            if cfg.graph:
+                kept = len(docs)
+                docs = self._expand_graph(docs)
+                trace.append(f"Graph-neighbor expansion: added {len(docs) - kept} passages")
             if cfg.opening:
                 openings = [d for d in self._openings(docs) if d not in docs]
                 docs = docs + openings

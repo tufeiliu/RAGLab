@@ -1,36 +1,37 @@
 """Plain-language descriptions of every RAG setting, shared by all pages."""
+from raglab.experiments import TECHNIQUE_FLAGS
 
-# key -> (label, explanation, RAGConfig overrides)
+# key -> (label, explanation, RAGConfig overrides from raglab.experiments.TECHNIQUE_FLAGS)
 TECHNIQUES = {
     'improved_prompt': ('Better prompt',
         'Gives the model today\'s date and asks it to separate facts from uncertainty and cite passage numbers.',
-        {'improved_prompt': True}),
+        TECHNIQUE_FLAGS['improved_prompt']),
     'query_rewrite': ('Query rewriting',
         'An LLM rewrites the question into a cleaner search query before retrieval. Helps with vague or chatty questions.',
-        {'query_rewrite': True}),
+        TECHNIQUE_FLAGS['query_rewrite']),
     'query_fusion': ('Original + rewritten query',
         'Searches with both the original and the rewritten question, then merges the results.',
-        {'query_rewrite': True, 'query_fusion': True}),
+        TECHNIQUE_FLAGS['query_fusion']),
     'query_expansion': ('Query expansion',
         'An LLM writes 2 alternative phrasings; passages found by any of the 3 queries are merged. Finds passages that use different wording.',
-        {'query_expansion': 3}),
+        TECHNIQUE_FLAGS['query_expansion']),
     'rerank': ('LLM re-ranking',
         'After retrieval, an LLM reorders the candidate passages by relevance and keeps the best K. Often the biggest accuracy gain, at one extra call per question.',
-        {'rerank': True}),
+        TECHNIQUE_FLAGS['rerank']),
     'opening': ('Include document opening',
         'Also gives the model the first passage of each file the search found: usually the title, authors, '
         'date and abstract. Helps with questions about the document itself, such as "who wrote this paper?".',
-        {'opening': True}),
+        TECHNIQUE_FLAGS['opening']),
     'graph': ('Neighbour expansion',
         'Adds up to 3 extra chunks that share many terms with the retrieved ones. A light stand-in for graph RAG.',
-        {'graph': True}),
+        TECHNIQUE_FLAGS['graph']),
     'preprocess': ('LLM document clean-up',
         'Index time: an LLM cleans each document section before it is chunked. Costly (one call per section) and builds a separate index.',
-        {'preprocess': True}),
+        TECHNIQUE_FLAGS['preprocess']),
     'hierarchical': ('Chunk summaries',
         'Index time: an LLM writes a summary of every chunk and indexes it alongside the chunk. One model call per '
         'chunk: a 10-page paper with small chunks means over a thousand calls and many minutes. Builds a separate index.',
-        {'hierarchical': True}),
+        TECHNIQUE_FLAGS['hierarchical']),
 }
 INDEX_TIME = {'preprocess', 'hierarchical'}
 QUERY_TIME = [k for k in TECHNIQUES if k not in INDEX_TIME]

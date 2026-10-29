@@ -33,3 +33,4 @@ examples/financial_rag_benchmark/results/
 # Links into .venv created by Streamlit's agent skills; they only work on this machine
 .agents/skills/developing-with-streamlit
 .claude/skills/developing-with-streamlit
+best_rag_report.json

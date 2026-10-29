@@ -406,8 +406,10 @@ def compare_runs(entries: list[dict], key: str) -> None:
 
     def value(row):
         return (row.get('judge') or {}).get(shown) if shown in ANSWER_METRICS else row.get(shown)
-    table = pd.DataFrame([{'Question': q[:120], **{e['label']: value(rows[q][e['label']]) if e['label'] in rows[q]
-                                                  else None for e in entries}} for q in questions]).set_index('Question')
+    # Numbered, so questions that begin alike never share a row label (the styled table needs unique labels).
+    table = pd.DataFrame([{'Question': f'{question_ids.get(q, i)}. {short(q, 110)}', **{e['label']: value(rows[q][e['label']])
+                                                                 if e['label'] in rows[q] else None for e in entries}}
+                          for i, q in enumerate(questions, 1)]).set_index('Question')
     shades = {'green': '#d4edda', 'orange': '#fff3cd', 'red': '#f8d7da'}
     styled = table.style.map(lambda v: f'background-color: {shades[rating(shown, float(v))[1]]}; color: #1f1f1f'
                              if pd.notna(v) else '').format(lambda v: '' if pd.isna(v) else display(shown, float(v)))
@@ -451,7 +453,8 @@ def compare_evaluations(job: dict, others: list[dict]) -> None:
     if not key or not candidates:
         st.caption('No other finished run used the same documents and test questions yet.')
         return
-    names = {o['id']: f"{o.get('display_name') or 'Run'} ({o['created_at'][:16].replace('T', ' ')})" for o in candidates}
+    names = {o['id']: (f"#{o['number']} " if o.get('number') else '') +
+                      f"{o.get('display_name') or 'Run'} ({o['created_at'][:16].replace('T', ' ')})" for o in candidates}
     chosen = st.multiselect('Runs to add', list(names), format_func=names.get, key=f'compare_jobs_{job["id"]}')
     if chosen:
         entries = [e for item in [job] + [o for o in candidates if o['id'] in chosen] for e in run_entries(item)]

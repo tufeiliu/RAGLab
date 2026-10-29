@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import hashlib
 
 import streamlit as st
 
@@ -9,6 +10,15 @@ from raglab.indexes import build_index, index_key, read_index
 from raglab_app import INDEXES, collections
 from raglab_app.jobs import status as job_status
 from raglab_app.models import make_clients, make_config
+
+def selection_key(prefix: str, rows) -> str:
+    """Widget key for a selectable table, tied to exactly which rows it shows.
+
+    Streamlit remembers selected row positions; when a row is added or removed those positions
+    would point at other rows (or past the end), so the selection starts afresh instead.
+    """
+    return f"{prefix}_{hashlib.sha1('|'.join(map(str, rows)).encode()).hexdigest()[:10]}"
+
 
 def when(iso: str) -> str:
     return datetime.fromisoformat(iso).astimezone().strftime('%Y-%m-%d %H:%M')
