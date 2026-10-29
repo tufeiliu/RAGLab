@@ -115,6 +115,12 @@ raglab_data/
   logs/app.log          questions asked in the app
 ```
 
+## Licence
+
+The RAGLab code is released under the [MIT licence](LICENSE). The example data below keeps its own licence.
+
+PDF reading uses [PyMuPDF](https://pymupdf.readthedocs.io/), installed with the optional `documents` extra, which is licensed under the AGPL-3.0. If you distribute RAGLab together with PyMuPDF, or offer it as a network service, the AGPL applies to that combination.
+
 ## Data and licences
 
 - **FinanceBench** ([patronus-ai/financebench](https://github.com/patronus-ai/financebench)) by Patronus AI is licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). This repository includes 10 of its questions with their gold answers and evidence (`examples/financial_rag_benchmark/data/`), and one example result built from them (`examples/library/financebench-hybrid-vs-vector/`). These files are shared under the same licence: attribution required, non-commercial use only. The filings themselves are not included; the app downloads them from the FinanceBench repository.
